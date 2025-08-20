@@ -1,15 +1,17 @@
-name: 🚀 Deploy Azure VM + File Share
-
+name: 🚀 Deploy Azure VM (Terraform)
 on:
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 🔐 Azure Login
         uses: azure/login@v1
@@ -17,12 +19,59 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: ⚙️ Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
 
-      - name: 🔧 Terraform Init
-        run: terraform init
-        working-directory: ./terraform
+      - name: 🧮 Compute backend names
+        id: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          HASH=$(printf "%s" "$REPO" | sha1sum | cut -c1-10)
+          SA="tfstate${HASH}"
+          SA="${SA:0:24}"
+          echo "TFSTATE_RESOURCE_GROUP=tfstate-rg" >> $GITHUB_ENV
+          echo "TFSTATE_STORAGE_ACCOUNT=$SA" >> $GITHUB_ENV
+          echo "TFSTATE_CONTAINER=tfstate" >> $GITHUB_ENV
+          echo "TFSTATE_KEY=terraform.tfstate" >> $GITHUB_ENV
+
+      - name: 🛠️ Ensure remote backend (RG, Storage Account, Container)
+        shell: bash
+        run: |
+          set -euo pipefail
+          az group create -n "$TFSTATE_RESOURCE_GROUP" -l "francecentral" >/dev/null
+          if ! az storage account show -g "$TFSTATE_RESOURCE_GROUP" -n "$TFSTATE_STORAGE_ACCOUNT" >/dev/null 2>&1; then
+            az storage account create \
+              -g "$TFSTATE_RESOURCE_GROUP" -n "$TFSTATE_STORAGE_ACCOUNT" \
+              -l "francecentral" --sku Standard_LRS --kind StorageV2 \
+              --allow-shared-key-access true >/dev/null
+          fi
+          KEY=$(az storage account keys list -g "$TFSTATE_RESOURCE_GROUP" -n "$TFSTATE_STORAGE_ACCOUNT" --query "[0].value" -o tsv)
+          echo "ARM_ACCESS_KEY=$KEY" >> $GITHUB_ENV
+          if ! az storage container show --name "$TFSTATE_CONTAINER" --account-name "$TFSTATE_STORAGE_ACCOUNT" --auth-mode key --account-key "$KEY" >/dev/null 2>&1; then
+            az storage container create --name "$TFSTATE_CONTAINER" --account-name "$TFSTATE_STORAGE_ACCOUNT" --auth-mode key --account-key "$KEY" >/dev/null
+          fi
+
+      - name: 🔑 Generate admin password (TF var)
+        shell: bash
+        run: echo "TF_VAR_admin_password=$(openssl rand -base64 24)" >> $GITHUB_ENV
+
+      - name: 🌐 Terraform Init (with backend)
+        shell: bash
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TFSTATE_CONTAINER" \
+            -backend-config="key=$TFSTATE_KEY"
 
       - name: 🚀 Terraform Apply
-        run: terraform apply -auto-approve
-        working-directory: ./terraform
+        env:
+          TF_IN_AUTOMATION: "true"
+        run: terraform apply -auto-approve -input=false
+
+      - name: 📤 Show outputs
+        if: always()
+        run: terraform output
