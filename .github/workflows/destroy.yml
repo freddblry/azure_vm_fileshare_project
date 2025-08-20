@@ -10,7 +10,7 @@ jobs:
   destroy:
     runs-on: ubuntu-latest
     env:
-      TF_VAR_admin_password: "dummy"   # ← mot de passe factice pour satisfaire Terraform
+      TF_VAR_admin_password: "dummy12345678*"   # ← mot de passe factice pour satisfaire Terraform
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
