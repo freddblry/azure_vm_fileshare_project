@@ -28,8 +28,12 @@ resource "random_string" "suffix" {
 
 locals {
   name_prefix           = "${var.project_name}-${random_string.suffix.result}"
-  storage_account_name  = substr(regexreplace(lower("${var.project_name}${random_string.suffix.result}"), "[^a-z0-9]", ""), 0, 24)
-  fileshare_name_lower  = lower(var.fileshare_name)
+  storage_account_name  = substr(
+  replace(lower("${var.project_name}${random_string.suffix.result}"), "[^a-z0-9]", ""),
+  0,
+  24
+)
+fileshare_name_lower  = lower(var.fileshare_name)
 
   cloud_init = <<-EOF
     #cloud-config
