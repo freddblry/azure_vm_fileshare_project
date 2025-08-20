@@ -1,0 +1,28 @@
+name: 🚀 Deploy Azure VM + File Share
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v3
+
+      - name: 🔐 Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ⚙️ Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: 🔧 Terraform Init
+        run: terraform init
+        working-directory: ./terraform
+
+      - name: 🚀 Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: ./terraform

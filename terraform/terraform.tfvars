@@ -1,0 +1,7 @@
+resource_group_name   = "rg-vm-fileshare"
+location              = "East US"
+admin_username        = "azureuser"
+admin_password        = "P@ssword1234!"
+storage_account_name  = "filesharestorageacct"
+file_share_name       = "projectshare"
+vm_size               = "Standard_B1s"
