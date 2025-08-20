@@ -1,0 +1,69 @@
+name: 🧨 Destroy Terraform Backend (Azure)
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔐 Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 🧮 Compute backend names (same scheme as deploy)
+        id: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          HASH=$(printf "%s" "$REPO" | sha1sum | cut -c1-10)
+          SA="tfstate${HASH}"
+          SA="${SA:0:24}"
+          echo "TFSTATE_RG=tfstate-rg" >> $GITHUB_ENV
+          echo "TFSTATE_SA=$SA" >> $GITHUB_ENV
+          echo "TFSTATE_CONTAINER=tfstate" >> $GITHUB_ENV
+          echo "TFSTATE_KEY=terraform.tfstate" >> $GITHUB_ENV
+
+      - name: 🔑 Get Storage Key
+        id: key
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEY=$(az storage account keys list -g "$TFSTATE_RG" -n "$TFSTATE_SA" --query "[0].value" -o tsv 2>/dev/null || true)
+          echo "ARM_ACCESS_KEY=$KEY" >> $GITHUB_ENV
+
+      - name: 🗑️ Delete state blob/container (if exist)
+        if: env.ARM_ACCESS_KEY != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Supprime le conteneur (supprime le blob de state s'il existe)
+          az storage container delete \
+            --name "$TFSTATE_CONTAINER" \
+            --account-name "$TFSTATE_SA" \
+            --auth-mode key --account-key "$ARM_ACCESS_KEY" \
+            --fail-not-exist true || true
+
+      - name: 🗄️ Delete Storage Account (if exist)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if az storage account show -g "$TFSTATE_RG" -n "$TFSTATE_SA" >/dev/null 2>&1; then
+            az storage account delete -g "$TFSTATE_RG" -n "$TFSTATE_SA" --yes
+          fi
+
+      - name: 🧹 Delete Resource Group (if empty or exists)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if az group show -n "$TFSTATE_RG" >/dev/null 2>&1; then
+            az group delete -n "$TFSTATE_RG" --yes --no-wait
+          fi
