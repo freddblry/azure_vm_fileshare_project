@@ -141,7 +141,7 @@ resource "azurerm_storage_account" "files" {
 
   # Make sure key access is enabled, needed for mount via SMB
   # (Enabled by default, but set explicitly for clarity)
-   allow_nested_items_to_be_public = false
+  # allow_nested_items_to_be_public = false
 
   tags = {
     project = var.project_name
