@@ -40,17 +40,16 @@ jobs:
           KEY=$(az storage account keys list -g "$TFSTATE_RG" -n "$TFSTATE_SA" --query "[0].value" -o tsv 2>/dev/null || true)
           echo "ARM_ACCESS_KEY=$KEY" >> $GITHUB_ENV
 
-      - name: 🗑️ Delete state blob/container (if exist)
-        if: env.ARM_ACCESS_KEY != ''
+      - name: 🗑️ Delete state container (if exists)
         shell: bash
         run: |
           set -euo pipefail
-          # Supprime le conteneur (supprime le blob de state s'il existe)
           az storage container delete \
-            --name "$TFSTATE_CONTAINER" \
-            --account-name "$TFSTATE_SA" \
-            --auth-mode key --account-key "$ARM_ACCESS_KEY" \
-            --fail-not-exist true || true
+          --name "$TFSTATE_CONTAINER" \
+          --account-name "$TFSTATE_SA" \
+          --auth-mode key \
+          --account-key "$ARM_ACCESS_KEY" || true
+
 
       - name: 🗄️ Delete Storage Account (if exist)
         shell: bash
