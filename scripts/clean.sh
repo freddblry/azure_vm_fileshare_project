@@ -1,5 +1,4 @@
-#!/bin/bash
-echo "🧹 Nettoyage des fichiers Terraform locaux..."
-cd terraform
-rm -rf .terraform terraform.tfstate terraform.tfstate.backup .terraform.lock.hcl
-echo "✅ Nettoyage terminé."
+#!/usr/bin/env bash
+set -euo pipefail
+rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
+echo "Cleaned local Terraform artifacts."
